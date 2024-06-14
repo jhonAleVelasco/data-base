@@ -1,0 +1,315 @@
+-- Active: 1718252621494@@127.0.0.1@5432@uno@public
+SELECT*FROM asignaturas;
+
+CREATE VIEW EstudiantesGlobal AS (
+    SELECT cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac FROM "Ingenieria Electronica".Estudiantes
+    UNION
+    SELECT cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac FROM "Ingenieria Civil".Estudiantes
+    UNION
+    SELECT cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac FROM "Ingenieria de Sistemas".Estudiantes
+    UNION
+    SELECT cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac FROM "Ingenieria Mecanica".Estudiantes
+);
+CREATE TABLE GlobalEstudiantes (
+    cod_e BIGINT CHECK(cod_e > 0),
+    id_carr BIGINT,
+    nom_e VARCHAR(100) NOT NULL,
+    dir_e VARCHAR(200),
+    tel_e VARCHAR(10),
+    fech_nac DATE,
+    PRIMARY KEY (cod_e),
+    FOREIGN KEY (id_carr) REFERENCES Ingenieria.Carreras(id_carr)
+);
+INSERT INTO GlobalEstudiantes (cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac)
+SELECT cod_e, id_carr, nom_e, dir_e, tel_e, fech_nac FROM EstudiantesGlobal;
+
+
+SELECT DISTINCT id_p FROM Profesores WHERE id_p IN (11001, 11002, 11003, 11004, 11005, 11006, 11007, 11008);
+SELECT DISTINCT cod_a FROM Asignaturas WHERE cod_a IN (1, 2, 3, 5, 6, 7, 8, 11);
+SELECT grupo, id_p, cod_a FROM Imparte
+WHERE (grupo, id_p, cod_a) IN (
+    (102, 11001, 5),
+    (108, 11005, 1),
+    (101, 11006, 6),
+    (102, 11007, 3),
+    (103, 11003, 8),
+    (104, 11004, 2),
+    (105, 11001, 7)
+);
+
+-- 1. 
+SELECT nom_a FROM asignaturas WHERE (int_h * creditos_a) >= 10;
+
+-- 2. Listado de estudiantes que no inscribieron materias.
+
+set search_path = Ingenieria,public;
+
+SELECT cod_e FROM globalestudiantes  
+EXCEPT 
+SELECT cod_e FROM inscribe;
+
+set search_path = biblioteca ,public;
+
+-- Consulta 3
+SELECT L.titulo
+FROM Libros L
+INNER JOIN Presta Pr ON L.isbn = Pr.isbn
+WHERE Pr.cod_e = 200008;
+
+set search_path = Ingenieria,public;
+
+-- Consulta 4
+SELECT Asi.nom_a
+FROM Asignaturas Asi
+INNER JOIN Inscribe I ON Asi.cod_a = I.cod_a
+WHERE I.cod_e = 200002;
+
+
+-- Consulta 5
+SELECT DISTINCT Asi.nom_a
+FROM Asignaturas Asi
+INNER JOIN (
+    SELECT cod_a, cod_e, AVG((n1 + n2 + n3) / 3) AS promedio_notas
+    FROM Inscribe
+    GROUP BY cod_a, cod_e
+) AS Promedios
+ON Asi.cod_a = Promedios.cod_a
+WHERE Promedios.promedio_notas <= 4.5;
+
+set search_path = biblioteca ,public;
+
+-- Consulta 6
+set search_path = biblioteca ,public;
+SELECT nom_e FROM ingenieria.globalestudiantes gl
+JOIN presta pr ON pr.cod_e = gl.cod_e WHERE fech_dev IS NULL;
+
+
+--condulta 7 
+set search_path = biblioteca ,public;
+SELECT r.cod_a,L.isbn, L.titulo
+FROM libros L
+JOIN ingenieria.referencia R ON L.isbn = R.isbn
+LEFT JOIN presta PR ON L.isbn = PR.isbn
+WHERE PR.isbn IS NULL;
+
+
+-- Consulta 8
+set search_path = ingenieria, public;
+
+-- Consulta para obtener estudiantes que pasaron el examen pero perdieron la asignatura
+SELECT ge.nom_e AS nombre_estudiante, a.nom_a AS asignatura_perdida
+FROM GlobalEstudiantes ge
+JOIN Inscribe i ON ge.cod_e = i.cod_e
+JOIN Asignaturas a ON i.cod_a = a.cod_a
+WHERE i.n1 >= 3.5 AND i.n2 >= 3.5 AND i.n3 >= 3.5  -- Condiciones para pasar el examen
+  AND (i.n1 < 3.5 OR i.n2 < 3.5 OR i.n3 < 3.5)     -- Condiciones para perder la asignatura
+  ;
+
+
+-- Consulta 9
+-- Ajustamos el search_path al esquema adecuado
+set search_path = ingenieria, public;
+
+-- Consulta para estudiantes que aprobaron todas las asignaturas
+SELECT ge.nom_e AS nombre_estudiante
+FROM GlobalEstudiantes ge
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM Inscribe i
+    WHERE i.cod_e = ge.cod_e
+      AND (i.n1 < 3.5 OR i.n2 < 3.5 OR i.n3 < 3.5)
+);
+
+
+
+-- Consulta 10: Liste los libros y su respectiva asignatura que los referencia, de aquellos libros que no se han prestado
+set search_path = biblioteca, public;
+SELECT l.titulo AS titulo_libro, a.nom_a AS asignatura
+FROM Libros l
+JOIN Referencia r ON l.isbn = r.isbn
+LEFT JOIN Presta p ON l.isbn = p.isbn
+JOIN Asignaturas a ON r.cod_a = a.cod_a
+WHERE p.isbn IS NULL;
+
+
+
+-- Consulta 11
+SELECT E.nombre_estudiante
+FROM Estudiantes E
+INNER JOIN Inscribe I ON E.id_estudiante = I.id_estudiante
+WHERE I.nota = (SELECT MAX(nota) FROM Inscribe WHERE id_asignatura = (SELECT id_asignatura FROM Asignaturas WHERE nombre_asignatura = 'Bases de Datos'));
+
+-- Consulta 12
+SELECT E.nombre_estudiante, A.nombre_asignatura, P.nombre_profesor
+FROM Estudiantes E
+INNER JOIN Inscribe I ON E.id_estudiante = I.id_estudiante
+INNER JOIN Asignaturas A ON I.id_asignatura = A.id_asignatura
+INNER JOIN Profesores P ON A.id_profesor = P.id_profesor
+WHERE I.nota = (SELECT MIN(nota) FROM Inscribe) LIMIT 1;
+
+-- Consulta 13
+SELECT id_estudiante
+FROM Prestamos
+GROUP BY id_estudiante
+ORDER BY COUNT(DISTINCT id_libro) DESC
+LIMIT 1;
+
+-- Consulta 14
+SELECT P.nombre_profesor
+FROM Profesores P
+INNER JOIN Asignaturas A ON P.id_profesor = A.id_profesor
+INNER JOIN Inscribe I ON A.id_asignatura = I.id_asignatura
+GROUP BY P.nombre_profesor
+ORDER BY SUM(CASE WHEN I.nota < 3.0 THEN 1 ELSE 0 END) / COUNT(*) DESC
+LIMIT 1;
+
+-- Consulta 15
+SELECT A.autor_libro
+FROM Libros L
+INNER JOIN Asignaturas A ON L.id_asignatura = A.id_asignatura
+GROUP BY A.autor_libro
+ORDER BY COUNT(DISTINCT A.id_asignatura) DESC
+LIMIT 1;
+
+-- Consulta 16
+SELECT nombre_estudiante
+FROM (SELECT id_estudiante, AVG(nota) AS promedio FROM Inscribe GROUP BY id_estudiante) AS Promedio
+WHERE promedio > 4.0;
+
+-- Consulta 17
+SELECT id_libro
+FROM Prestamos
+GROUP BY id_libro
+ORDER BY COUNT(*) DESC
+LIMIT 1;
+
+-- Consulta 18
+SELECT id_libro
+FROM Libros
+GROUP BY id_libro
+ORDER BY COUNT(*) DESC
+LIMIT 1;
+
+-- Consulta 19
+SELECT P.nombre_profesor
+FROM Profesores P
+INNER JOIN Asignaturas A ON P.id_profesor = A.id_profesor
+GROUP BY P.nombre_profesor
+HAVING COUNT(DISTINCT A.id_asignatura) = (SELECT MAX(contador) FROM (SELECT COUNT(DISTINCT id_asignatura) AS contador FROM Asignaturas GROUP BY id_profesor) AS Contador);
+
+-- Consulta 20
+SELECT E.nombre_estudiante
+FROM Estudiantes E
+INNER JOIN Grupos G ON E.id_grupo = G.id_grupo
+GROUP BY E.nombre_estudiante
+HAVING AVG((SELECT AVG(nota) FROM Inscribe WHERE id_estudiante = E.id_estudiante GROUP BY id_estudiante)) = (SELECT MAX(promedio) FROM (SELECT AVG(nota) AS promedio FROM Inscribe GROUP BY id_estudiante) AS Promedio);
+
+-- Consulta 21
+SELECT C.nombre_carrera
+FROM Carreras C
+INNER JOIN Grupos G ON C.id_carrera = G.id_carrera
+LEFT JOIN Inscribe I ON G.id_grupo = I.id_grupo
+GROUP BY C.nombre_carrera
+HAVING COUNT(CASE WHEN I.nota < 3.0 THEN 1 END) / COUNT(*) > 0.5;
+
+-- Consulta 22
+SELECT P.nombre_profesor
+FROM Profesores P
+INNER JOIN Asignaturas A ON P.id_profesor = A.id_profesor
+INNER JOIN (SELECT id_profesor, COUNT(DISTINCT id_grupo) AS contador FROM Asignaturas GROUP BY id_profesor) AS Contador ON P.id_profesor = Contador.id_profesor
+WHERE Contador.contador > 1;
+
+-- Consulta 23
+SELECT A.nombre_asignatura
+FROM Asignaturas A
+INNER JOIN Grupos G ON A.id_grupo = G.id_grupo
+INNER JOIN Carreras C ON G.id_carrera = C.id_carrera
+GROUP BY A.nombre_asignatura, C.nombre_carrera
+HAVING C.nombre_carrera = 'Ingeniería de Sistemas'
+ORDER BY AVG((SELECT AVG(nota) FROM Inscribe WHERE id_asignatura = A.id_asignatura GROUP BY id_estudiante)) ASC
+LIMIT 1;
+
+-- Consulta 24
+-- Primero, establecemos el esquema adecuado
+SET search_path = ingenieria, public;
+
+-- Luego, realizamos la consulta
+WITH NotasCompletas AS (
+    -- Subconsulta para verificar que todos los estudiantes hayan pasado todas las asignaturas
+    SELECT 
+        cod_e, 
+        COUNT(DISTINCT cod_a) AS total_asignaturas,
+        COUNT(*) FILTER (WHERE n1 >= 3 AND n2 >= 3 AND n3 >= 3) AS aprobadas
+    FROM inscribe
+    GROUP BY cod_e
+    HAVING COUNT(DISTINCT cod_a) = COUNT(*) FILTER (WHERE n1 >= 3 AND n2 >= 3 AND n3 >= 3)
+)
+SELECT 
+    e.cod_e, 
+    e.nom_e, 
+    c.nom_carr AS carrera,
+    COALESCE((i.n1 + i.n2 + i.n3) / 3.0, 0.0) AS promedio
+FROM NotasCompletas nc
+JOIN GlobalEstudiantes e ON nc.cod_e = e.cod_e
+JOIN Carreras c ON e.id_carr = c.id_carr
+LEFT JOIN inscribe i ON e.cod_e = i.cod_e
+WHERE (i.n1 + i.n2 + i.n3) / 3.0 = (
+    SELECT MAX((i.n1 + i.n2 + i.n3) / 3.0)
+    FROM inscribe i
+    WHERE i.cod_e = nc.cod_e
+);
+
+-- Establecemos el esquema adecuado
+SET search_path = ingenieria, public;
+
+-- Realizamos la consulta
+-- Establecemos el esquema adecuado
+SET search_path = ingenieria, public;
+
+-- Realizamos la consulta
+-- Establecemos el esquema adecuado
+SET search_path = ingenieria, public;
+
+-- Realizamos la consulta
+SELECT 
+    p.id_p AS id_profesor,
+    p.nom_p AS nombre_profesor,
+    c.nom_carr AS nombre_carrera
+FROM Profesores p
+JOIN Imparte im ON p.id_p = im.id_p
+JOIN Asignaturas a ON im.cod_a = a.cod_a
+JOIN GlobalEstudiantes e ON im.grupo = e.cod_e
+JOIN Carreras c ON e.id_carr = c.id_carr
+WHERE p.id_p NOT IN (
+    SELECT p2.id_p
+    FROM Profesores p2
+    JOIN Imparte im2 ON p2.id_p = im2.id_p
+    JOIN GlobalEstudiantes e2 ON im2.grupo = e2.cod_e
+    GROUP BY p2.id_p
+    HAVING COUNT(DISTINCT e2.id_carr) > 1
+);
+
+
+
+SELECT * FROM listado_facultad_asig
+
+SELECT * FROM listado_facultad_notas
+
+SET search_path = biblioteca, public;
+
+SELECT * FROM prestamos_universidad
+
+SET search_path = ingenieria, public;
+
+SELECT * FROM lista_estudiantes
+
+SET search_path = biblioteca, public;
+SELECT * FROM consulta_escribe
+
+SELECT * FROM consultar_prest_est
+
+SELECT * FROM info_profesores
+
+-- Ejemplo de consulta como estudiante
+SELECT * FROM ingenieria.notasEstud;
+

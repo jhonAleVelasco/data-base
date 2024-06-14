@@ -1,0 +1,30 @@
+-- Active: 1718252621494@@127.0.0.1@5432@uno@public
+------------------------------------------------------------ PRUEBAS ----------------------------------------------------
+
+-- Profesor de ingenieria
+
+SET SESSION AUTHORIZATION '11001';
+SELECT SESSION_USER, CURRENT_USER;
+
+SELECT * FROM biblioteca.libros;
+SELECT * FROM ingenieria.info_profesores;
+UPDATE ingenieria.info_profesores SET nom_p = 'Mi nombre' where current_user = id_p::text;
+
+-- Estudiante de ingenieria
+
+SET SESSION AUTHORIZATION '11001';
+SELECT SESSION_USER, CURRENT_USER;
+
+SELECT * FROM biblioteca.consulta_escribe;
+
+-- Administrador
+
+SET SESSION AUTHORIZATION 'postgres';
+
+select * from biblioteca.presta;
+
+-- Bibliotecario
+
+SET SESSION AUTHORIZATION 'bibliotecau';
+
+SELECT * FROM biblioteca.presta;
